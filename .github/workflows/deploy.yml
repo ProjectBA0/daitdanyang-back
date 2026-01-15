@@ -13,46 +13,21 @@ jobs:
           fetch-depth: 0
           lfs: true
       
-            - name: Setup SSH
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.HF_SSH_KEY }}
       
-              uses: webfactory/ssh-agent@v0.9.0
-      
-              with:
-      
-                ssh-private-key: ${{ secrets.HF_SSH_KEY }}
-      
-            
-      
-            - name: Push to hub
-      
-              env:
-      
-                HF_TOKEN: ${{ secrets.HF_TOKEN }}
-      
-              run: |
-      
-                git config --global user.email "actions@github.com"
-      
-                git config --global user.name "GitHub Actions"
-      
-                
-      
-                # 🦁 Setup LFS for Hugging Face
-      
-                git lfs install
-      
-                git lfs track "*.jpg" "*.png" "*.bin" "*.pkl" "*.pth"
-      
-                git add .gitattributes
-      
-                git commit -m "Track large files with LFS" || true
-      
-                
-      
-                ssh-keyscan hf.co >> ~/.ssh/known_hosts
-      
-                git remote add space git@hf.co:spaces/Lineair/daitdanyang-backend
-      
-                git push --force space main
-      
-      
+      - name: Push to hub
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+          git lfs install
+          git lfs track "*.jpg" "*.png" "*.bin" "*.pkl" "*.pth"
+          git add .gitattributes
+          git commit -m "Track large files with LFS" || true
+          ssh-keyscan hf.co >> ~/.ssh/known_hosts
+          git remote add space git@hf.co:spaces/Lineair/daitdanyang-backend
+          git push --force space main
