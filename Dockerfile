@@ -28,5 +28,5 @@ RUN mkdir -p $HOME/app/data && mkdir -p $HOME/app/instance
 # Expose port
 EXPOSE 7860
 
-# Run seed and server
-CMD python seed.py && gunicorn app:app --bind 0.0.0.0:7860 --timeout 120 --workers 2
+# Run server only (DB is loaded from HF Dataset by engine.py)
+CMD gunicorn app:app --bind 0.0.0.0:7860 --timeout 120 --workers 2

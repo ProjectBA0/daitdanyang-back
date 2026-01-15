@@ -19,41 +19,66 @@ class NyangRagEngine:
         chatbot_dir = os.path.dirname(core_dir) 
         back_dir = os.path.dirname(chatbot_dir) 
         
-        # 🦁 [Production] Download Data from HF Dataset if ENV is set
-        hf_dataset_id = os.getenv("HF_DATASET_ID")
-        if hf_dataset_id:
+        from huggingface_hub import snapshot_download
+
+        # 🦁 [Production] 1. Download Vector/Cache Data (Lineair/daitdanyang-db)
+        hf_vec_repo = os.getenv("HF_VEC_REPO")
+        if hf_vec_repo:
             try:
-                from huggingface_hub import snapshot_download
-                print(f"🚀 [Engine Init] Downloading data from HF: {hf_dataset_id}")
-                download_path = os.path.join(chatbot_dir, "data")
-                os.makedirs(download_path, exist_ok=True)
+                print(f"🚀 [Engine Init] Downloading VECTOR Data from HF: {hf_vec_repo}")
+                vec_download_path = os.path.join(chatbot_dir, "data")
+                os.makedirs(vec_download_path, exist_ok=True)
                 snapshot_download(
-                    repo_id=hf_dataset_id,
+                    repo_id=hf_vec_repo,
                     repo_type="dataset",
-                    local_dir=download_path,
+                    local_dir=vec_download_path,
                     token=os.getenv("HF_TOKEN")
                 )
-                print("✅ Data Download Complete!")
+                print("✅ Vector Data Download Complete!")
             except Exception as e:
-                print(f"❌ Data Download Failed: {e}")
+                print(f"❌ Vector Data Download Failed: {e}")
 
-        # 1. LanceDB & Cache Paths
+        # 🦁 [Production] 2. Download SQL/General Data (Lineair/backDB)
+        hf_db_repo = os.getenv("HF_DB_REPO")
+        db_download_path = os.path.join(back_dir, "hf_db_storage")
+        
+        if hf_db_repo:
+            try:
+                print(f"🚀 [Engine Init] Downloading SQL Data from HF: {hf_db_repo}")
+                os.makedirs(db_download_path, exist_ok=True)
+                snapshot_download(
+                    repo_id=hf_db_repo,
+                    repo_type="dataset",
+                    local_dir=db_download_path,
+                    token=os.getenv("HF_TOKEN")
+                )
+                print("✅ SQL Data Download Complete!")
+            except Exception as e:
+                print(f"❌ SQL Data Download Failed: {e}")
+
+        # 1. LanceDB & Cache Paths (Expects to be in chatbot_dir/data)
         self.data_dir = os.path.join(chatbot_dir, "data", "lancedb_store")
         self.cache_path = os.path.join(chatbot_dir, "data", "v5_atlas_cache_FINAL.pkl")
         
-        # 2. SQL Database Path
-        self.sql_path = os.path.join(back_dir, "instance", "petshop.db")
+        # 2. SQL Database Path Strategy
+        # Priority: 1. HF Downloaded -> 2. Instance Folder -> 3. Root
+        potential_paths = [
+            os.path.join(db_download_path, "petshop.db"),          # HF Download
+            os.path.join(back_dir, "instance", "petshop.db"),      # Default Local
+            os.path.join(back_dir, "petshop.db")                   # Root Local
+        ]
         
-        print(f"🦁 [Engine Init] LanceDB: {self.data_dir}")
-        print(f"🦁 [Engine Init] SQL DB: {self.sql_path}")
+        self.sql_path = None
+        for p in potential_paths:
+            if os.path.exists(p):
+                self.sql_path = p
+                print(f"🦁 [Engine Init] Selected SQL DB: {self.sql_path}")
+                break
         
-        if not os.path.exists(self.sql_path):
-            print("⚠️ Warning: petshop.db not found in instance folder. Trying back root...")
-            self.sql_path = os.path.join(back_dir, "petshop.db")
-            if not os.path.exists(self.sql_path):
-                print("❌ Error: petshop.db NOT FOUND anywhere!")
-                self.sql_path = None
-        
+        if not self.sql_path:
+             print(f"❌ Error: petshop.db NOT FOUND in any expected location!")
+             print(f"   - Checked: {potential_paths}")
+
         self.db = None
         self.embed_model = None
         self.kiwi = None

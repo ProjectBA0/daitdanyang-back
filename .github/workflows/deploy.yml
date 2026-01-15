@@ -1,33 +1,64 @@
-name: Sync to Hugging Face hub
+name: Deploy Backend to Hugging Face
+
 on:
   push:
     branches: [main]
+    paths:
+      - 'back/**' # back 폴더가 변경될 때만 실행
   workflow_dispatch:
 
 jobs:
-  sync-to-hub:
+  deploy-backend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-          lfs: true
-      
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.9.0
+          lfs: false # 데이터셋 분리했으므로 LFS 불필요
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
-          ssh-private-key: ${{ secrets.HF_SSH_KEY }}
-      
-      - name: Push to hub
+          python-version: '3.10'
+
+      - name: Install Hugging Face Hub
+        run: pip install huggingface_hub
+
+      - name: Upload to Hugging Face Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_USERNAME: ${{ secrets.HF_USERNAME }}
         run: |
-          git config --global user.email "actions@github.com"
-          git config --global user.name "GitHub Actions"
-          git lfs install
-          git lfs track "*.jpg" "*.png" "*.bin" "*.pkl" "*.pth"
-          git add .gitattributes
-          git commit -m "Track large files with LFS" || true
-          ssh-keyscan hf.co >> ~/.ssh/known_hosts
-          git remote add space git@hf.co:spaces/Lineair/daitdanyang-backend
-          git push --force space main
+          python -c "
+          from huggingface_hub import HfApi
+          import os
+          
+          # Secrets 확인
+          token = os.environ.get('HF_TOKEN')
+          username = os.environ.get('HF_USERNAME')
+          
+          if not token or not username:
+              raise ValueError('HF_TOKEN or HF_USERNAME secret is missing!')
+              
+          api = HfApi(token=token)
+          
+          repo_id = f'{username}/daitdanyang-backend'
+          print(f'🚀 Deploying Backend to: {repo_id}')
+          
+          try:
+              api.upload_folder(
+                  folder_path='./back',
+                  repo_id=repo_id,
+                  repo_type='space',
+                  ignore_patterns=[
+                      '.venv/**', 'venv/**', '__pycache__/**', 'instance/**', '.git/**', '.cache/**', 
+                      '*.db', '*.sqlite3', 
+                      'VectorRagChatbot/data/**', 'data/**', '*.pkl'
+                  ],
+                  commit_message='Deploy Backend via GitHub Actions'
+              )
+              print('✅ Backend Upload Success!')
+          except Exception as e:
+              print(f'❌ Upload Failed: {e}')
+              exit(1)
+          "

@@ -19,13 +19,24 @@ app = create_app()
 
 with app.app_context():
     # =========================================================
+    # 🦁 [Safety] 테이블이 없으면 먼저 생성 (no such table 에러 방지)
+    # =========================================================
+    db.create_all()
+    print("✅ 테이블 생성 완료 (또는 이미 존재함)")
+
+    # =========================================================
     # 0️⃣ 기존 데이터 전체 삭제 (FK 고려 순서)
     # =========================================================
-    db.session.query(Question).delete()
-    db.session.query(Product).delete()
-    db.session.query(User).delete()
-    db.session.commit()
-    print("🗑 기존 데이터 전체 삭제 완료")
+    try:
+        db.session.query(Review).delete() # 🦁 Review도 삭제해야 함 (FK)
+        db.session.query(Question).delete()
+        db.session.query(Product).delete()
+        db.session.query(User).delete()
+        db.session.commit()
+        print("🗑 기존 데이터 전체 삭제 완료")
+    except Exception as e:
+        print(f"⚠️ 데이터 삭제 중 오류 (무시 가능): {e}")
+        db.session.rollback()
 
     # =========================================================
     # 1️⃣ 관리자(admin) 유저 생성

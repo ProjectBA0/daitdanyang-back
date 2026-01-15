@@ -77,9 +77,18 @@ def create_app():
     # =========================
     # 2. DB 설정 (⭐️ 제일 중요)
     # =========================
+    # 🦁 Dynamic DB Path from Engine (HF Support)
+    if engine.sql_path and os.path.exists(engine.sql_path):
+        db_path = os.path.abspath(engine.sql_path)
+        print(f"🦁 [App] Using DB found by Engine: {db_path}")
+        default_db_uri = f"sqlite:///{db_path}"
+    else:
+        print("⚠️ [App] Engine did not find DB. Falling back to default.")
+        default_db_uri = "sqlite:///petshop.db"
+
     app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
         "DATABASE_URL",
-        "sqlite:///petshop.db"
+        default_db_uri
     )
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
