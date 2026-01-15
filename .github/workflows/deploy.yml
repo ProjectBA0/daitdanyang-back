@@ -2,8 +2,6 @@ name: Sync to Hugging Face hub
 on:
   push:
     branches: [main]
-
-  # 수동 실행 가능하게 함
   workflow_dispatch:
 
 jobs:
@@ -14,17 +12,13 @@ jobs:
         with:
           fetch-depth: 0
           lfs: true
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-            ssh-private-key: ${{ secrets.HF_SSH_KEY }}
+            - name: Push to hub
+              env:
+                HF_TOKEN: ${{ secrets.HF_TOKEN }}
+              run: |
+                git config --global user.email "actions@github.com"
+                git config --global user.name "GitHub Actions"
+                ssh-keyscan hf.co >> ~/.ssh/known_hosts
+                git remote add space git@hf.co:spaces/Lineair/daitdanyang-backend
+                git push --force space main
       
-      - name: Push to hub
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          git config --global user.email "actions@github.com"
-          git config --global user.name "GitHub Actions"
-          ssh-keyscan hf.co >> ~/.ssh/known_hosts
-          git remote add space git@hf.co:Lineair/daitdanyang-backend
-          git push --force space main
