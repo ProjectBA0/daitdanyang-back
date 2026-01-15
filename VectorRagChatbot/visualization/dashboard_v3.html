@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Nyang V5.5 Production: Neuro-Symbolic Agent</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #050508; color: #eee; font-family: 'Pretendard', sans-serif; display: flex; height: 100vh; }
+        
+        #left-panel { width: 320px; background: #151515; border-right: 1px solid #333; display: flex; flex-direction: column; z-index: 10; box-shadow: 10px 0 30px rgba(0,0,0,0.5); flex-shrink: 0; }
+        #main-view { flex-grow: 1; position: relative; background: radial-gradient(circle at center, #1a1a24 0%, #000 100%); }
+        #right-panel { width: 450px; background: #151515; border-left: 1px solid #333; display: flex; flex-direction: column; z-index: 10; box-shadow: -10px 0 30px rgba(0,0,0,0.5); flex-shrink: 0; transition: width 0.3s; }
+        
+        .panel-header { padding: 12px 15px; font-size: 13px; font-weight: bold; color: #aaa; text-transform: uppercase; background: #1a1a1a; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #222; flex-shrink: 0; letter-spacing: 1px; }
+        .scroll-area { flex-grow: 1; overflow-y: auto; padding: 10px; }
+
+        #search-box { padding: 15px; border-bottom: 1px solid #333; background: #1a1a1a; flex-shrink: 0; }
+        input[type="text"] { width: 100%; padding: 12px; background: #000; border: 1px solid #444; color: #fff; border-radius: 6px; font-size: 14px; outline: none; transition: 0.3s; box-sizing: border-box; }
+        input[type="text"]:focus { border-color: #00d2ff; box-shadow: 0 0 15px rgba(0, 210, 255, 0.3); }
+
+        .tree-header-controls { padding: 10px; background: #222; border-bottom: 1px solid #333; display: flex; flex-direction: column; gap: 8px; }
+        .control-row { display: flex; align-items: center; gap: 8px; }
+        .tab-header { display: flex; border-bottom: 1px solid #333; }
+        .tab-btn { flex: 1; padding: 12px; background: #222; border: none; color: #888; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .tab-btn.active { background: #151515; color: #00d2ff; border-top: 2px solid #00d2ff; }
+        
+        #chat-section { height: 35%; border-top: 1px solid #333; background: #1a1a20; display: flex; flex-direction: column; }
+        #chat-area { padding: 15px; flex-grow: 1; overflow-y: auto; font-size: 13px; line-height: 1.6; color: #eee; white-space: pre-wrap; }
+
+        /* RIGHT PANEL SPLIT */
+        .right-split { display: flex; flex-direction: column; height: calc(100% - 65px); flex-grow: 1; overflow: hidden; }
+        .split-item { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+        .split-item:first-child { border-bottom: 1px solid #333; }
+
+        .tree-node { margin-left: 16px; border-left: 1px solid #333; display: none; }
+        .tree-node.open { display: block; }
+        .tree-item { cursor: pointer; padding: 4px 8px; border-radius: 4px; font-size: 12px; display: flex; align-items: center; color: #ccc; margin-bottom: 2px; }
+        .tree-item:hover { background: #2a2a2a; color: #fff; }
+        .tree-item input { margin-right: 8px; cursor: pointer; }
+        .tree-item .arrow { margin-right: 6px; font-size: 10px; width: 12px; display: inline-block; color: #666; }
+
+        /* Log Terminal (Colorful Steps) */
+        #log-terminal { background: #000; padding: 10px; font-family: 'Consolas', monospace; font-size: 11px; line-height: 1.5; overflow-y: auto; color: #aaa; flex: 1; }
+        .log-entry { margin-bottom: 6px; border-left: 3px solid #333; padding-left: 8px; animation: fadeIn 0.3s; background: rgba(255,255,255,0.02); }
+        .log-step { font-weight: bold; margin-right: 5px; color: inherit; } 
+        
+        .step-PERCEPTION { border-color: #888; color: #aaa; } 
+        .step-TOKENIZING { border-color: #00d2ff; color: #00d2ff; }
+        .step-RETRIEVAL { border-color: #d633ff; color: #d633ff; }
+        .step-REFLECTION { border-color: #ffd700; color: #ffd700; }
+        .step-CRITIQUE { border-color: #ffaa00; color: #ffaa00; }
+        .step-SYNTHESIS { border-color: #00ff9d; color: #00ff9d; }
+
+        .result-card { background: #1e1e24; padding: 12px; margin-bottom: 8px; border-radius: 6px; border-left: 4px solid #444; cursor: pointer; transition: 0.2s; position: relative; }
+        .result-card:hover { transform: translateX(2px); filter: brightness(1.2); }
+        .result-card.pass { border-left-color: #00ff9d; background: rgba(0, 255, 157, 0.05); }
+        .result-card.homepage { border-left-color: #9d00ff; background: rgba(157, 0, 255, 0.1); }
+        /* Validated Top 5 Style */
+        .result-card.validated { 
+            border: 2px solid #ffd700 !important; 
+            background: linear-gradient(90deg, rgba(255, 215, 0, 0.15) 0%, rgba(0,0,0,0) 100%) !important;
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.2);
+        }
+        .result-card.validated::after {
+            content: '👑'; position: absolute; top: -10px; right: -5px; font-size: 20px; text-shadow: 0 0 10px #000;
+        }
+        .result-card.active { border: 2px solid #00d2ff; } /* Selection Highlight */
+        
+        .log-entry b { color: #fff; font-weight: 900; }
+        .log-highlight { color: #ffd700; font-weight: bold; }
+        
+        .res-title { font-weight: bold; font-size: 13px; color: #eee; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .score-badges { display: flex; gap: 6px; margin-top: 6px; font-size: 10px; font-weight: bold; font-family: 'Consolas', monospace; }
+        .badge { padding: 2px 6px; border-radius: 4px; border: 1px solid; display: flex; align-items: center; gap: 4px; }
+        .badge-s1 { background: rgba(0, 136, 255, 0.15); border-color: #0088ff; color: #0088ff; }
+        .badge-s2 { background: rgba(255, 0, 85, 0.15); border-color: #ff0055; color: #ff0055; }
+        .badge-final { background: rgba(0, 255, 157, 0.15); border-color: #00ff9d; color: #00ff9d; flex-grow: 1; justify-content: center; }
+        .type-tag { display: inline-block; padding: 2px 5px; border-radius: 3px; font-size: 9px; font-weight: bold; margin-right: 4px; vertical-align: middle; }
+        .tag-product { background: #ff0055; color: #fff; }
+        .tag-knowledge { background: #00d2ff; color: #000; }
+        .tag-homepage { background: #9d00ff; color: #fff; border: 1px solid #d48aff; }
+        
+        .score-bar { height: 4px; background: #111; border-radius: 2px; overflow: hidden; margin-top: 8px; }
+        .score-fill { height: 100%; background: #00ff9d; border-radius: 2px; transition: width 0.8s; }
+
+        #loading { position: absolute; inset: 0; background: #000; display: flex; justify-content: center; align-items: center; z-index: 2000; color: #00d2ff; font-size: 20px; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        .result-card.validated { border: 2px solid #ffd700 !important; background: linear-gradient(90deg, rgba(255, 215, 0, 0.15) 0%, rgba(0,0,0,0) 100%) !important; box-shadow: 0 0 15px rgba(255, 215, 0, 0.2); }
+        .result-card.validated::after { content: '👑'; position: absolute; top: -10px; right: -5px; font-size: 20px; text-shadow: 0 0 10px #000; }
+        .log-entry b { color: #fff; font-weight: 900; }
+        .log-highlight { color: #ffd700; font-weight: bold; }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
+</head>
+<body>
+    <div id="loading">🦁 Initializing Nyang V5.5...</div>
+
+    <div id="left-panel">
+        <div class="tree-header-controls">
+            <div class="control-row">
+                <input type="checkbox" id="homepage-only-toggle" onchange="toggleHomepageOnly(this.checked)">
+                <label for="homepage-only-toggle" style="cursor:pointer; color:#d48aff; font-weight:bold; font-size:12px;">🏠 자사몰만 보기</label>
+            </div>
+            <div class="control-row">
+                <input type="checkbox" id="select-all-toggle" checked onchange="toggleSelectAll(this.checked)">
+                <label for="select-all-toggle" style="cursor:pointer; color:#fff; font-size:12px;">✅ 현재 탭 전체 선택/해제</label>
+            </div>
+        </div>
+        <div class="tab-header">
+            <button class="tab-btn active" onclick="switchTab('product')">🛍️ 상품</button>
+            <button class="tab-btn" onclick="switchTab('knowledge')">🧠 지식</button>
+        </div>
+        <div class="scroll-area" id="tree-container"></div>
+        <div id="chat-section">
+            <div class="panel-header" style="background:#222; border-top:1px solid #444;"><span>🦁 냥이의 브리핑</span><span id="brain-status" style="font-size:10px; color:#888;">WAITING</span></div>
+            <div id="chat-area"><span style="color:#666;">(질문을 입력하면 냥이가 답해준다냥!)</span></div>
+        </div>
+    </div>
+
+    <div id="main-view"></div>
+
+    <div id="right-panel">
+        <div id="search-box"><input type="text" id="queryInput" placeholder="무엇이든 물어보라냥... (Enter)" onkeypress="if(event.key==='Enter') startStream()"></div>
+        <div class="right-split">
+            <div class="split-item">
+                <div class="panel-header"><span>검증된 결과</span><span id="res-count" style="color:#00ff9d">0</span></div>
+                <div class="scroll-area" id="result-list"></div>
+            </div>
+            <div class="split-item">
+                <div class="panel-header"><span>사고 스트림</span></div>
+                <div id="log-terminal"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let scene, camera, renderer, controls, pointsMesh, originalColors, catIndices; 
+        let HIERARCHIES = {}, PATH_MAP = {}, activePathIds = new Set(), HOMEPAGE_IDS = new Set(), currentTab = 'product';
+        let resultGroup, querySphere, arrows = [], clusterSprites = [], goldenPaths = [], finalGlows = [];
+        let currentHighlightId = null;
+        let chatHistory = [];
+
+        init3D();
+        loadData();
+
+        function init3D() {
+            const container = document.getElementById('main-view');
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(50, container.clientWidth/container.clientHeight, 1, 100000);
+            camera.position.set(1500, 1500, 2000);
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            container.appendChild(renderer.domElement);
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.autoRotate = true; controls.autoRotateSpeed = 0.3;
+            resultGroup = new THREE.Group(); scene.add(resultGroup);
+            animate();
+        }
+
+        async function loadData() {
+            try {
+                const cfg = await fetch('/atlas/config').then(r => r.json());
+                HIERARCHIES = cfg.trees || {}; PATH_MAP = cfg.path_map || {};
+                if(cfg.homepage_ids) HOMEPAGE_IDS = new Set(cfg.homepage_ids);
+                Object.values(PATH_MAP).forEach(id => activePathIds.add(Number(id)));
+                renderTree(currentTab);
+
+                const binData = await fetch('/atlas/binary').then(r => r.arrayBuffer());
+                const view = new DataView(binData);
+                const count = view.getUint32(0, true);
+                let off = 4;
+                const pos = new Float32Array(count * 3);
+                for(let i=0; i<count*3; i++) { pos[i] = view.getFloat32(off, true); off += 4; }
+                originalColors = new Uint8Array(binData, off, count * 4); off += count * 4;
+                catIndices = new Uint32Array(binData, off, count);
+                const col = new Float32Array(count * 3);
+                for(let i=0; i<count; i++) { col[i*3]=originalColors[i*4]/255; col[i*3+1]=originalColors[i*4+1]/255; col[i*3+2]=originalColors[i*4+2]/255; }
+                const geo = new THREE.BufferGeometry();
+                geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+                geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+                const vis = new Float32Array(count).fill(1.0);
+                geo.setAttribute('visible', new THREE.BufferAttribute(vis, 1));
+                
+                const shaderMat = new THREE.ShaderMaterial({
+                    uniforms: { opacity: { value: 0.4 } },
+                    vertexShader: `
+                        attribute float visible; attribute vec3 color; varying vec3 vColor; varying float vVisible;
+                        void main() { vColor = color; vVisible = visible; 
+                        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                        gl_PointSize = (visible > 0.5) ? max(2.0, 1500.0 / -mvPosition.z) : 0.0; 
+                        gl_Position = projectionMatrix * mvPosition; }
+                    `,
+                    fragmentShader: `
+                        varying vec3 vColor; varying float vVisible; uniform float opacity;
+                        void main() { if (vVisible < 0.5) discard; 
+                        float d = distance(gl_PointCoord, vec2(0.5, 0.5)); if (d > 0.5) discard;
+                        gl_FragColor = vec4(vColor, opacity); }
+                    `,
+                    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+                });
+                pointsMesh = new THREE.Points(geo, shaderMat);
+                scene.add(pointsMesh);
+                updateVisibility();
+                document.getElementById('loading').style.display = 'none';
+            } catch (e) { console.error(e); }
+        }
+
+        function toggleHomepageOnly(checked) {
+            activePathIds.clear();
+            if (checked) HOMEPAGE_IDS.forEach(id => activePathIds.add(Number(id)));
+            else Object.values(PATH_MAP).forEach(id => activePathIds.add(Number(id)));
+            updateVisibility(); renderTree(currentTab);
+        }
+        function toggleSelectAll(checked) {
+            const prefixes = currentTab === 'product' ? ['PROD', 'HOME'] : ['KNOW'];
+            Object.keys(PATH_MAP).forEach(key => {
+                if (prefixes.some(p => key.startsWith(p))) {
+                    const id = Number(PATH_MAP[key]);
+                    if(checked) activePathIds.add(id); else activePathIds.delete(id);
+                }
+            });
+            updateVisibility(); renderTree(currentTab);
+        }
+        function updateVisibility() {
+            if(!pointsMesh || !catIndices) return;
+            const visAttr = pointsMesh.geometry.attributes.visible;
+            for(let i=0; i<catIndices.length; i++) { 
+                visAttr.setX(i, activePathIds.has(catIndices[i]) ? 1.0 : 0.0); 
+            }
+            visAttr.needsUpdate = true;
+        }
+        window.switchTab = (tab) => { 
+            currentTab = tab; 
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active'); renderTree(tab); 
+        }
+        function renderTree(type) {
+            const container = document.getElementById('tree-container'); container.innerHTML = "";
+            const tree = HIERARCHIES[type] || {};
+            Object.keys(tree).sort().forEach(l1 => {
+                const l1Div = createTreeNode(l1, 1, type);
+                const l1Container = document.createElement('div'); l1Container.className = 'tree-node';
+                Object.keys(tree[l1]).sort().forEach(l2 => {
+                    const l2Div = createTreeNode(l2, 2, type, l1);
+                    const l2Container = document.createElement('div'); l2Container.className = 'tree-node';
+                    tree[l1][l2].forEach(l3 => l2Container.appendChild(createTreeNode(l3, 3, type, l1, l2)));
+                    l2Div.appendChild(l2Container); l1Container.appendChild(l2Div);
+                });
+                l1Div.appendChild(l1Container); container.appendChild(l1Div);
+            });
+        }
+        function createTreeNode(label, level, type, p1, p2) {
+            const div = document.createElement('div');
+            const header = document.createElement('div'); header.className = `tree-item lvl-${level}`;
+            const prefixes = (type === 'product') ? ['PROD', 'HOME'] : ['KNOW'];
+            let path = ""; if(level===1) path = `|${label}`; else if(level===2) path=`|${p1}|${label}`; else path=`|${p1}|${p2}|${label}`;
+            const isChecked = prefixes.some(p => activePathIds.has(Number(PATH_MAP[p+path])));
+            header.innerHTML = `<span class="arrow">${level===3?'●':'▶'}</span><input type="checkbox" ${isChecked?'checked':''}>${label}`;
+            div.appendChild(header);
+            const cb = header.querySelector('input');
+            cb.onclick = (e) => { e.stopPropagation(); toggleHierarchy(type, label, level, p1, p2, e.target.checked); };
+            if(level<3) header.onclick = () => { const child = div.querySelector('.tree-node'); if(child) child.classList.toggle('open'); };
+            return div;
+        }
+        function toggleHierarchy(type, label, level, p1, p2, checked) {
+            const tree = HIERARCHIES[type]; let paths = [];
+            const collect = (t, prefix) => {
+                if (Array.isArray(t)) t.forEach(leaf => paths.push(`${prefix}|${leaf}`));
+                else Object.keys(t).forEach(k => { paths.push(`${prefix}|${k}`); collect(t[k], `${prefix}|${k}`); });
+            };
+            const prefixes = (type === 'product') ? ['PROD', 'HOME'] : ['KNOW'];
+            prefixes.forEach(pf => {
+                if(level===3) paths.push(`${pf}|${p1}|${p2}|${label}`);
+                else if(level===2) { paths.push(`${pf}|${p1}|${label}`); if(tree[p1] && tree[p1][label]) collect(tree[p1][label], `${pf}|${p1}|${label}`); }
+                else { paths.push(`${pf}|${label}`); if(tree[label]) collect(tree[label], `${pf}|${label}`); }
+            });
+            paths.forEach(p => { const id = Number(PATH_MAP[p]); if(id) checked ? activePathIds.add(id) : activePathIds.delete(id); });
+            updateVisibility(); renderTree(currentTab);
+        }
+
+        const sparkleTex = (function() {
+            const canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            const grad = ctx.createRadialGradient(32,32,0, 32,32,32);
+            grad.addColorStop(0, 'rgba(255,255,255,1)'); grad.addColorStop(0.3, 'rgba(255,0,85,0.6)'); grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad; ctx.fillRect(0,0,64,64);
+            return new THREE.CanvasTexture(canvas);
+        })();
+
+        window.startStream = function() {
+            const q = document.getElementById('queryInput').value;
+            // Clear UI
+            document.getElementById('log-terminal').innerHTML = ''; 
+            document.getElementById('result-list').innerHTML = ''; 
+            document.getElementById('chat-area').innerHTML = '';
+            
+            resultGroup.clear(); arrows = []; clusterSprites = []; goldenPaths = []; finalGlows = [];
+            
+            querySphere = new THREE.Mesh(new THREE.SphereGeometry(15, 16, 16), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 }));
+            resultGroup.add(querySphere);
+            if(pointsMesh) pointsMesh.material.uniforms.opacity.value = 0.1;
+            controls.autoRotate = false;
+
+            const historyStr = encodeURIComponent(JSON.stringify(chatHistory));
+            const evtSource = new EventSource(`/stream_reasoning?q=${encodeURIComponent(q)}&h=${historyStr}`);
+            
+            evtSource.addEventListener('log', (e) => {
+                const d = JSON.parse(e.data); const div = document.createElement('div'); 
+                div.className = `log-entry step-${d.step}`;
+                div.innerHTML = `<span class="log-step">[${d.step}]</span> ${d.msg}`;
+                document.getElementById('log-terminal').appendChild(div); document.getElementById('log-terminal').scrollTop = 9999;
+            });
+            evtSource.addEventListener('swarm_data', (e) => { visualizeBurstAndClusters(JSON.parse(e.data)); });
+            evtSource.addEventListener('nodes', (e) => { visualizeTrace(JSON.parse(e.data)); });
+            evtSource.addEventListener('update_node', (e) => { addResultCard(JSON.parse(e.data)); });
+            evtSource.addEventListener('chat', (e) => { 
+                const d = JSON.parse(e.data);
+                typeWriter(d.msg); 
+                chatHistory.push({ user: q, assistant: d.msg });
+                if (chatHistory.length > 5) chatHistory.shift();
+
+                // [UI Polish] Show Validated Results
+                if (d.final_top_5 && d.final_top_5.length > 0) {
+                    const list = document.getElementById('result-list');
+                    const sep = document.createElement('div');
+                    sep.style.cssText = "text-align:center; padding:10px; color:#ffd700; font-weight:bold; border-top:1px dashed #444; margin-top:10px;";
+                    sep.innerText = "👑 최종 엄선 (Top 5) 👑";
+                    list.appendChild(sep);
+
+                    d.final_top_5.forEach(n => {
+                        n.isValidated = true; 
+                        addResultCard(n);
+                    });
+                    document.getElementById('res-count').innerText = list.getElementsByClassName('result-card').length;
+                }
+            });
+            evtSource.addEventListener('error', () => { evtSource.close(); });
+            evtSource.addEventListener('done', () => evtSource.close());
+        };
+
+        function visualizeBurstAndClusters(data) {
+            let cx=0, cy=0, cz=0; data.s1_nodes.forEach(n => { cx+=n.coord[0]; cy+=n.coord[1]; cz+=n.coord[2]; });
+            cx /= data.s1_nodes.length; cy /= data.s1_nodes.length; cz /= data.s1_nodes.length;
+            const qPos = new THREE.Vector3(cx, cy, cz); querySphere.position.copy(qPos);
+            new TWEEN.Tween(controls.target).to({x:cx,y:cy,z:cz}, 1000).start();
+            
+            // 500 Blue Arrows (Bright & Visible)
+            data.s1_nodes.slice(0, 500).forEach((n, i) => {
+                setTimeout(() => {
+                    const arrow = createArrow(qPos, new THREE.Vector3(...n.coord), 0x00ffff, 0.8, 0.5);
+                    resultGroup.add(arrow); 
+                    arrows.push({ mesh: arrow, type: 'blue', nodeId: n.id, clusterId: n.cluster_id });
+                }, i * 2);
+            });
+            
+            // Red Sparkles
+            Object.entries(data.centroids).forEach(([cid, info], i) => {
+                const size = Math.log(info.size + 1) * 6 + 10;
+                const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: sparkleTex, color: 0xff0055, transparent: true, blending: THREE.AdditiveBlending }));
+                sprite.position.set(...info.center); sprite.scale.set(size, size, 1);
+                resultGroup.add(sprite); clusterSprites.push({ mesh: sprite, center: info.center });
+                new TWEEN.Tween(sprite.scale).to({x:size*1.3, y:size*1.3}, 1000).yoyo(true).repeat(Infinity).start();
+            });
+        }
+
+        function visualizeTrace(nodes) {
+            nodes.forEach((n, i) => {
+                setTimeout(() => {
+                    if (n.chain && n.chain.length >= 2) {
+                        const cPos = new THREE.Vector3(...n.chain[0]), nPos = new THREE.Vector3(...n.coords);
+                        const green = createArrow(cPos, nPos, 0x00ff00, 0.6, 1.0);
+                        resultGroup.add(green); arrows.push({ mesh: green, type: 'green', nodeIdx: n.idx });
+                        
+                        if (i < 5) {
+                            const gold = createArrow(querySphere.position, nPos, 0xffd700, 1.0, 2.0);
+                            resultGroup.add(gold); goldenPaths.push({ mesh: gold, nodeIdx: n.idx });
+                            const glow = new THREE.Mesh(new THREE.SphereGeometry(12, 16, 16), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending }));
+                            glow.position.copy(nPos); resultGroup.add(glow); finalGlows.push({ mesh: glow, nodeIdx: n.idx });
+                        }
+                    }
+                }, 1000 + i * 100);
+            });
+        }
+
+        function addResultCard(node) {
+            const list = document.getElementById('result-list');
+            let cardClass = node.status === 'PASS' ? 'pass' : 'reject';
+            if (node.isValidated) cardClass += ' validated'; // Gold Border for Validated
+            let typeLabel = node.type === 'product' ? 'PRODUCT' : 'KNOWLEDGE';
+            let typeClass = node.type === 'product' ? 'tag-product' : 'tag-knowledge';
+            let sourceTag = node.source === 'homepage' ? `<span class="type-tag tag-homepage">🏠</span>` : "";
+            const s1 = (node.history.s1 * 100).toFixed(0); const s2 = node.history.s2.toFixed(2); const final = (node.score * 100).toFixed(1);
+            
+            const card = document.createElement('div'); 
+            card.className = `result-card ${cardClass} ${node.source==='homepage'?'homepage':''}`; 
+            card.id = `card-${node.idx}`;
+            card.innerHTML = `<div>${sourceTag}<span class="type-tag ${typeClass}">${typeLabel}</span></div><div class="res-title">${node.title}</div><div class="score-badges"><div class="badge badge-s1">S1 ${s1}</div><div class="badge badge-s2">× ${s2}</div><div class="badge badge-final">FINAL ${final}%</div></div><div class="score-bar"><div class="score-fill" style="width:${Math.min(node.score*100, 100)}%"></div></div>`;
+            card.onclick = () => highlightTrace(node);
+            list.appendChild(card); document.getElementById('res-count').innerText = list.children.length;
+        }
+
+        function highlightTrace(node) {
+            if (currentHighlightId === node.idx) { resetHighlight(); return; }
+            currentHighlightId = node.idx;
+            document.querySelectorAll('.result-card').forEach(c => c.classList.remove('active'));
+            document.getElementById(`card-${node.idx}`).classList.add('active');
+            
+            // Highlight Logic: Cluster Blue Arrows + Trace
+            const targetClusterId = node.cluster_id;
+            
+            arrows.forEach(a => {
+                let isActive = false;
+                if(a.type === 'green' && a.nodeIdx === node.idx) isActive = true;
+                if(a.type === 'blue' && (a.clusterId === targetClusterId || a.nodeId === node.id)) isActive = true;
+                setOpacity(a.mesh, isActive ? 1.0 : 0.05);
+            });
+            clusterSprites.forEach(s => {
+                // If node is in cluster, highlight cluster
+                // Simple distance check if cluster_id logic fails, but cluster_id is robust
+                // But sprites don't have cluster_id attached in current loop... wait, visualizeBurstAndClusters passes it in loop but not to push.
+                // Let's rely on distance for sprite highlight as fallback or update sprite push.
+                // Actually, let's just highlight all clusters dimly or specific one.
+                // For now, distance check is safest visual match.
+                const isMine = node.chain && new THREE.Vector3(...s.center).distanceTo(new THREE.Vector3(...node.chain[0])) < 10;
+                setOpacity(s.mesh, isMine ? 1.0 : 0.05);
+            });
+            goldenPaths.forEach(g => setOpacity(g.mesh, g.nodeIdx === node.idx ? 1.0 : 0.05));
+            finalGlows.forEach(f => setOpacity(f.mesh, f.nodeIdx === node.idx ? 1.0 : 0.05));
+            new TWEEN.Tween(controls.target).to({x:node.coords[0],y:node.coords[1],z:node.coords[2]}, 800).start();
+        }
+
+        function resetHighlight() {
+            currentHighlightId = null; document.querySelectorAll('.result-card').forEach(c => c.classList.remove('active'));
+            arrows.forEach(a => setOpacity(a.mesh, a.type === 'blue' ? 0.6 : 0.6));
+            clusterSprites.forEach(s => setOpacity(s.mesh, 0.8));
+            goldenPaths.forEach(g => setOpacity(g.mesh, 1.0));
+            finalGlows.forEach(f => setOpacity(f.mesh, 0.7));
+        }
+
+        function setOpacity(obj, op) { if (obj.material) obj.material.opacity = op; obj.traverse(c => { if(c.material) c.material.opacity = op; }); }
+        
+        function createArrow(v1, v2, color, opacity, width) {
+            const dist = v1.distanceTo(v2); const dir = new THREE.Vector3().subVectors(v2, v1).normalize();
+            const group = new THREE.Group();
+            const line = new THREE.Mesh(new THREE.CylinderGeometry(width, width, dist, 6), new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: opacity }));
+            line.position.copy(v1).add(v2).multiplyScalar(0.5); line.lookAt(v2); line.rotateX(Math.PI/2);
+            const cone = new THREE.Mesh(new THREE.ConeGeometry(width*3, width*8, 8), new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: opacity }));
+            cone.position.copy(v2); cone.lookAt(v2.clone().add(dir)); cone.rotateX(Math.PI/2);
+            group.add(line); group.add(cone); return group;
+        }
+        function typeWriter(txt) {
+            const area = document.getElementById('chat-area'); area.innerHTML = '<strong>🦁 냥이:</strong><br>';
+            let i = 0; function step() { if(i<txt.length) { area.innerHTML += txt.charAt(i++); area.scrollTop=9999; setTimeout(step, 20); } } step();
+        }
+        function animate(time) { requestAnimationFrame(animate); controls.update(); TWEEN.update(time); renderer.render(scene, camera); }
+    </script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+.env
+
+# Flask/DB
+instance/*.db
+instance/*.sqlite3
+*.db
+*.sqlite3
+
+# AI Data & Models (Only if they are large and will be downloaded separately)
+# VectorRagChatbot/data/lancedb_store/ 
+# VectorRagChatbot/data/*.pkl
+
+# OS/IDE
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Docker
+Dockerfile
+.dockerignore

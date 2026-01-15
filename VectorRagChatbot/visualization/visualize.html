@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Nyang V5 Knowledge Universe (LanceDB)</title>
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+    <style>
+        body { margin: 0; background: #1a1a1a; color: white; font-family: sans-serif; overflow: hidden; }
+        #controls { position: absolute; top: 20px; left: 20px; z-index: 10; background: rgba(0,0,0,0.8); padding: 20px; border-radius: 10px; border: 1px solid #444; max-height: 90vh; overflow-y: auto; }
+        input[type="text"] { background: #333; color: white; border: 1px solid #555; padding: 10px; width: 250px; border-radius: 5px; }
+        button { background: #ff6b6b; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin-left: 5px; }
+        button:hover { background: #ff5252; }
+        #status { margin-top: 10px; font-size: 0.8em; color: #aaa; margin-bottom: 10px; }
+        .filter-group { margin-top: 15px; border-top: 1px solid #555; padding-top: 10px; }
+        .filter-item { display: flex; align-items: center; margin-bottom: 5px; font-size: 0.9em; }
+        .filter-item input { margin-right: 8px; width: auto; }
+        .color-box { width: 12px; height: 12px; display: inline-block; margin-right: 8px; border-radius: 2px; }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <h2>🦁 Nyang Space V5</h2>
+        <div style="display: flex;">
+            <input type="text" id="queryInput" placeholder="질문을 입력하면 공간에서 찾아냥!">
+            <button onclick="updateSearch()">검색!</button>
+        </div>
+        <div id="status">데이터 로딩 중...</div>
+        <div id="filters" class="filter-group">
+            <!-- 필터 체크박스가 여기에 생깁니다 -->
+        </div>
+    </div>
+    <div id="plot" style="width:100vw; height:100vh;"></div>
+
+    <script>
+        let rawData = null; 
+        let activeCategories = new Set();
+        
+        const categoryColors = {
+            "강아지": "#ff6b6b",
+            "고양이": "#4facfe",
+            "관상어": "#00f260",
+            "소동물": "#fddb92",
+            "조류": "#e0c3fc",
+            "기타": "#888888",
+            "Query": "#ffffff"
+        };
+
+        function getColor(cat) {
+            if (categoryColors[cat]) return categoryColors[cat];
+            let hash = 0;
+            for (let i = 0; i < cat.length; i++) hash = cat.charCodeAt(i) + ((hash << 5) - hash);
+            const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
+            return "#" + "00000".substring(0, 6 - c.length) + c;
+        }
+
+        async function loadData(query = "") {
+            document.getElementById('status').innerText = "데이터를 불러오는 중입니다냥...";
+            try {
+                const resp = await fetch(`http://localhost:8002/data?query=${encodeURIComponent(query)}`);
+                rawData = await resp.json();
+                
+                if (activeCategories.size === 0) {
+                    initFilters(rawData.points);
+                }
+                
+                renderPlot();
+                document.getElementById('status').innerText = `총 ${rawData.points.length}개의 지식이 우주에 떠다닙니다냥!`;
+            } catch (err) {
+                document.getElementById('status').innerText = "서버 연결 실패! v5_visualizer_lancedb.py를 먼저 실행해라냥!";
+                console.error(err);
+            }
+        }
+
+        function initFilters(points) {
+            const categories = [...new Set(points.map(p => p.category || "기타"))].sort();
+            const filterDiv = document.getElementById('filters');
+            filterDiv.innerHTML = "<strong>카테고리 필터</strong><br>";
+
+            categories.forEach(cat => {
+                activeCategories.add(cat);
+                
+                const item = document.createElement('div');
+                item.className = 'filter-item';
+                const color = getColor(cat);
+                
+                item.innerHTML = `
+                    <input type="checkbox" id="cb_${cat}" checked onchange="toggleCategory('${cat}')">
+                    <span class="color-box" style="background:${color}"></span>
+                    <label for="cb_${cat}">${cat}</label>
+                `;
+                filterDiv.appendChild(item);
+            });
+        }
+
+        function toggleCategory(cat) {
+            if (activeCategories.has(cat)) activeCategories.delete(cat);
+            else activeCategories.add(cat);
+            renderPlot();
+        }
+
+        function renderPlot() {
+            if (!rawData) return;
+
+            const dbPoints = rawData.points;
+            const qPoint = rawData.query_point;
+            const traces = [];
+
+            const grouped = {};
+            dbPoints.forEach(p => {
+                const cat = p.category || "기타";
+                if (!activeCategories.has(cat)) return;
+
+                if (!grouped[cat]) grouped[cat] = { x: [], y: [], z: [], text: [] };
+                grouped[cat].x.push(p.x);
+                grouped[cat].y.push(p.y);
+                grouped[cat].z.push(p.z);
+                grouped[cat].text.push(`[${cat}] ${p.title}<br>${p.text}`);
+            });
+
+            for (const [cat, data] of Object.entries(grouped)) {
+                traces.push({
+                    x: data.x, y: data.y, z: data.z,
+                    text: data.text,
+                    mode: 'markers',
+                    type: 'scatter3d',
+                    name: cat,
+                    marker: { size: 3, color: getColor(cat), opacity: 0.7 }
+                });
+            }
+
+            if (qPoint) {
+                traces.push({
+                    x: [qPoint.x], y: [qPoint.y], z: [qPoint.z],
+                    text: ["🎯 내 질문: " + qPoint.text],
+                    mode: 'markers',
+                    type: 'scatter3d',
+                    name: 'Current Query',
+                    marker: { size: 15, color: '#ff0000', symbol: 'diamond' }
+                });
+            }
+
+            const layout = {
+                margin: { l: 0, r: 0, b: 0, t: 0 },
+                paper_bgcolor: '#1a1a1a',
+                plot_bgcolor: '#1a1a1a',
+                showlegend: false,
+                scene: {
+                    xaxis: { title: '', showgrid: true, gridcolor: '#333' },
+                    yaxis: { title: '', showgrid: true, gridcolor: '#333' },
+                    zaxis: { title: '', showgrid: true, gridcolor: '#333' },
+                    camera: { eye: { x: 1.5, y: 1.5, z: 1.5 } }
+                }
+            };
+
+            Plotly.react('plot', traces, layout);
+        }
+
+        function updateSearch() {
+            const q = document.getElementById('queryInput').value;
+            loadData(q);
+        }
+
+        loadData();
+    </script>
+</body>
+</html>

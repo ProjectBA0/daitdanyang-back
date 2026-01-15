@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.env
+
+# Database
+*.db
+*.sqlite3
+instance/
+
+# AI Data (Ignore large files!)
+VectorRagChatbot/data/lancedb_store/ 
+VectorRagChatbot/data/*.pkl
+*.bin
+*.pt
+*.pth
+
+# Logs
+*.log
+
+# OS
+.DS_Store
