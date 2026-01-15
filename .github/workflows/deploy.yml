@@ -20,6 +20,5 @@ jobs:
         run: |
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
-          git config --global credential.helper store
-          echo "https://Lineair:$HF_TOKEN@huggingface.co" > ~/.git-credentials
-          git push --force https://huggingface.co/spaces/Lineair/daitdanyang-backend main
+          git remote add space https://Lineair:$HF_TOKEN@huggingface.co/spaces/Lineair/daitdanyang-backend
+          git push --force space main
