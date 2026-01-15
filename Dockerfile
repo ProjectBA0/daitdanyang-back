@@ -1,38 +1,32 @@
 # Use official Python runtime
 FROM python:3.10-slim
 
-# Set working directory
-WORKDIR /app
+# Create a non-root user (Hugging Face requirement)
+RUN useradd -m -u 1000 user
+USER user
+ENV HOME=/home/user \
+    PATH=/home/user/.local/bin:$PATH
 
-# Install system dependencies
-# build-essential: for compiling some python packages
-# curl: for health checks or downloading files
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+WORKDIR $HOME/app
 
-# Copy requirements first (for cache efficiency)
-COPY requirements.txt .
+# Install system dependencies (Root required for apt)
+USER root
+RUN apt-get update && apt-get install -y build-essential curl && rm -rf /var/lib/apt/lists/*
+USER user
 
-# Install dependencies (upgrade pip first)
-RUN pip install --upgrade pip
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy requirements and install
+COPY --chown=user requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application
-COPY . .
+# Copy application code
+COPY --chown=user . .
 
-# Create directory for data (LanceDB) & set permissions
-RUN mkdir -p /app/data && chmod 777 /app/data
-RUN mkdir -p /app/instance && chmod 777 /app/instance
+# Create needed directories
+RUN mkdir -p $HOME/app/data && mkdir -p $HOME/app/instance
 
-# Environment Variables
-ENV FLASK_APP=app.py
-ENV PYTHONUNBUFFERED=1
-ENV PORT=7860
-
-# Expose the port used by Hugging Face Spaces
+# Expose port
 EXPOSE 7860
 
-# Run seed.py to initialize DB, then start Gunicorn
+# Run seed and server
 CMD python seed.py && gunicorn app:app --bind 0.0.0.0:7860 --timeout 120 --workers 2
