@@ -1,25 +1,9 @@
----
-title: Daitdanyang Backend
-emoji: 🦁
-colorFrom: blue
-colorTo: indigo
-sdk: docker
-app_port: 7860
-pinned: false
----
+# DaitDanyang Backend
 
-# 🦁 Daitdanyang Backend (AI RAG Engine)
+## 🚀 배포 가이드
+이 프로젝트는 **Hugging Face Spaces (Docker)** 에 배포됩니다.
+GitHub Actions를 통해 `back/` 폴더의 내용이 자동으로 Space로 동기화됩니다.
 
-This is the backend API for the Daitdanyang Pet Shop platform.
-It features a high-performance RAG chatbot powered by OpenAI, LanceDB, and Flask.
-
-## 🚀 Deployment Info
-- **SDK:** Docker
-- **Port:** 7860
-- **Base Image:** python:3.10-slim
-
-## 🔑 Required Secrets
-- `OPENAI_API_KEY`
-- `HF_TOKEN`
-- `HF_DATASET_ID`
-- `SECRET_KEY`
+- **Engine**: Python Flask + RAG (Vector Search)
+- **Database**: SQLite (managed via Hugging Face Datasets)
+- **Deployment**: GitHub Actions + `huggingface_hub` (Python Script)
